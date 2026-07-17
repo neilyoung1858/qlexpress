@@ -134,3 +134,4 @@ if(mcc == "1520"){ point = 0; } else {
   if(tradeAmt >= 1000){ point = tradeAmt * 1; point; } else { 0; }
 }
 ```
+<img width="1928" height="1030" alt="图片" src="https://github.com/user-attachments/assets/e2403e7e-c652-489c-a29d-87897149bbf2" />
