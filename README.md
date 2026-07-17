@@ -135,3 +135,5 @@ if(mcc == "1520"){ point = 0; } else {
 }
 ```
 <img width="1928" height="1030" alt="图片" src="https://github.com/user-attachments/assets/e2403e7e-c652-489c-a29d-87897149bbf2" />
+<img width="909" height="514" alt="图片" src="https://github.com/user-attachments/assets/91067bf4-341b-45e1-b63a-2fe169b590c6" />
+
