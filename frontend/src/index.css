@@ -1,0 +1,67 @@
+:root {
+  --primary: #4f6ef7;
+  --primary-light: #eef1ff;
+  --primary-hover: #3b5de7;
+  --primary-subtle: rgba(79, 110, 247, 0.08);
+  --success: #22c55e;
+  --success-light: #f0fdf4;
+  --warning: #f59e0b;
+  --warning-light: #fffbeb;
+  --danger: #ef4444;
+  --danger-light: #fef2f2;
+  --purple: #8b5cf6;
+  --purple-light: #f5f3ff;
+  --teal: #14b8a6;
+
+  --bg: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-hover: #f8f9fb;
+  --bg-canvas: #f8f9fb;
+  --bg-header: #0f172a;
+  --border: #e5e7eb;
+  --border-light: #f3f4f6;
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  --header-h: 56px;
+  --sidebar-w: 228px;
+  --rightpanel-w: 340px;
+
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  --mono: 'SF Mono', 'SFMono-Regular', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  max-width: 100%;
+  border: none;
+  text-align: left;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: #c4c8d0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a8adb5; }
+::-webkit-scrollbar-track { background: transparent; }

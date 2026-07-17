@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: qlexpress-rule-engine
+  jackson:
+    default-property-inclusion: non_null
+
+logging:
+  level:
+    com.ruleengine: DEBUG
