@@ -89,10 +89,9 @@
 /* ===== Body ===== */
 .app-body {
   display: flex;
-  flex: 1;
-  height: calc(100vh - 56px);
   overflow: hidden;
   background: var(--bg);
+  height: calc(100vh - 56px - 44px);
 }
 
 /* ===== Sidebar ===== */
@@ -596,4 +595,73 @@
   flex-shrink: 0;
 }
 
+/* ===== App Container ===== */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+}
+.app-tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.app-tab {
+  padding: 8px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-tab:hover {
+  color: var(--primary);
+}
+.app-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 500;
+}
+.app-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rule-create-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== Rule List ===== */
+.rule-list-page {
+  padding: 16px 24px;
+  background: var(--bg);
+  flex: 1;
+  overflow: auto;
+}
+.rule-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* ===== Rule Test ===== */
+.rule-test-page {
+  padding: 16px 24px;
+  background: var(--bg);
+  flex: 1;
+  overflow: auto;
+}
 

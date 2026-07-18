@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Graph, Shape } from '@antv/x6'
 import { register } from '@antv/x6-react-shape'
-import { Button, Tooltip, message, AutoComplete, Input } from 'antd'
-import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, NodeIndexOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Tooltip, message, AutoComplete, Input, Modal } from 'antd'
+import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, NodeIndexOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { CirclePlay, Diamond, Calculator, Ban, CircleCheckBig, CornerDownLeft } from 'lucide-react'
 import useStore from '../store/useStore'
 import { NODE_DEFINITIONS } from '../config/nodes'
@@ -83,8 +83,8 @@ const NodeContainer = ({ node }) => {
         borderTop: `4px solid ${color}`,
         color: '#1f2937',
         borderRadius: 10,
-        minWidth: isStart || isEnd ? '100px' : isCondition ? '200px' : '140px',
-        padding: '8px 10px',
+        minWidth: isStart || isEnd ? '90px' : isCondition ? '200px' : '140px',
+        padding: isStart || isEnd ? '4px 8px' : '8px 10px',
         height: '100%',
         boxSizing: 'border-box',
         display: 'flex',
@@ -176,7 +176,7 @@ NODE_DEFINITIONS.forEach((def) => {
     shape: def.type,
     component: NodeContainer,
     width: isCond ? 210 : isReturn ? 140 : isSmall ? 110 : 150,
-    height: isCond ? 200 : isReturn ? 80 : 80,
+    height: isCond ? 200 : isReturn ? 80 : isSmall ? 50 : 80,
     inherit: 'react-shape',
     ports: getPortDef(def.type),
     effect: ['data'],
@@ -193,6 +193,11 @@ function Canvas() {
   const pushHistory = useStore((s) => s.pushHistory)
   const setQlExpression = useStore((s) => s.setQlExpression)
   const customFields = useStore((s) => s.customFields)
+  const canvasData = useStore((s) => s.canvasData)
+  const qlExpression = useStore((s) => s.qlExpression)
+  const currentRuleId = useStore((s) => s.currentRuleId)
+  const setCurrentRuleId = useStore((s) => s.setCurrentRuleId)
+  const setRules = useStore((s) => s.setRules)
   const undo = useStore((s) => s.undo)
   const redo = useStore((s) => s.redo)
   const historyIndex = useStore((s) => s.historyIndex)
@@ -226,8 +231,8 @@ function Canvas() {
     const container = containerRef.current
     const graph = new Graph({
       container,
-      width: container.clientWidth,
-      height: container.clientHeight,
+      width: container.clientWidth || 800,
+      height: container.clientHeight || 600,
       grid: { visible: true, size: 20, type: 'doubleMesh' },
       panning: { enabled: true, eventTypes: ['leftMouseDown', 'rightMouseDown'] },
       mousewheel: { enabled: true, zoomAtMousePosition: true, factor: 1.1 },
@@ -298,12 +303,14 @@ function Canvas() {
     setGraph(graph)
 
     // Force resize after layout settles
-    requestAnimationFrame(() => {
+    const doResize = () => {
       if (containerRef.current && graphRef.current) {
         const c = containerRef.current
-        graphRef.current.resize(c.clientWidth || c.offsetWidth, c.clientHeight || c.offsetHeight)
+        graphRef.current.resize(c.clientWidth || 800, c.clientHeight || 600)
       }
-    })
+    }
+    requestAnimationFrame(doResize)
+    setTimeout(doResize, 500)
 
     graph.on('node:click', ({ node }) => {
       selectCell(graph, node.id)
@@ -403,6 +410,15 @@ function Canvas() {
 
     pushHistory(graph.toJSON())
 
+    setTimeout(() => {
+      if (graphRef.current && containerRef.current) {
+        const c = containerRef.current
+        if (c.clientWidth > 0 && c.clientHeight > 0) {
+          graphRef.current.resize(c.clientWidth, c.clientHeight)
+        }
+      }
+    }, 300)
+
     const handleResize = () => {
       if (graphRef.current && containerRef.current) {
         graphRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight)
@@ -424,13 +440,29 @@ function Canvas() {
     }
   }, [])
 
+  function resizeGraph() {
+    if (graphRef.current && containerRef.current) {
+      graphRef.current.resize(containerRef.current.clientWidth || containerRef.current.offsetWidth, containerRef.current.clientHeight || containerRef.current.offsetHeight)
+    }
+  }
+
   useEffect(() => {
     if (!graphRef.current) return
     const saved = localStorage.getItem('ruleCanvasData')
-    if (saved) {
-      try { graphRef.current.fromJSON(JSON.parse(saved)) } catch (e) { /* ignore */ }
+    const loadData = canvasData || (saved ? JSON.parse(saved) : null)
+    if (loadData) {
+      try { graphRef.current.fromJSON(loadData); resizeGraph(); generateQL() } catch (e) { /* ignore */ }
     }
   }, [graphRef.current])
+
+  useEffect(() => {
+    if (!graphRef.current || !canvasData) return
+    try {
+      graphRef.current.fromJSON(canvasData)
+      pushHistory(canvasData)
+      setTimeout(() => { resizeGraph(); generateQL() }, 100)
+    } catch (e) { /* ignore */ }
+  }, [canvasData])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -564,6 +596,10 @@ function Canvas() {
 
   const [searchText, setSearchText] = useState('')
   const [searchOptions, setSearchOptions] = useState([])
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [ruleName, setRuleName] = useState('')
+  const [creator, setCreator] = useState('admin')
+  const [saving, setSaving] = useState(false)
 
   const handleSearchChange = useCallback((value) => {
     setSearchText(value)
@@ -584,6 +620,61 @@ function Canvas() {
     })
     setSearchOptions(results)
   }, [])
+
+  const handleSaveClick = useCallback(() => {
+    if (!graphRef.current) return
+    setSaveModalOpen(true)
+    if (!ruleName) {
+      const nodes = graphRef.current.getCells()
+      const start = nodes.find((n) => n.shape === 'start')
+      setRuleName(start?.getData()?.label || '未命名规则')
+    }
+  }, [ruleName])
+
+  useEffect(() => {
+    if (currentRuleId && !creator) {
+      setCreator('admin')
+    }
+  }, [currentRuleId])
+
+  const handleSubmit = useCallback(async () => {
+    if (!graphRef.current || !ruleName.trim()) {
+      message.warning('请输入规则名称')
+      return
+    }
+    setSaving(true)
+    try {
+      const canvasJson = JSON.stringify(graphRef.current.toJSON())
+      const url = currentRuleId ? `/api/rules/${currentRuleId}` : '/api/rules'
+      const method = currentRuleId ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: ruleName.trim(),
+          creator: creator.trim() || 'admin',
+          canvasJson,
+          qlExpression,
+          customFields: customFields.map((f) => ({
+            id: f.id, name: f.name, type: f.type, category: f.category, preset: f.preset,
+          })),
+        }),
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        if (!currentRuleId) setCurrentRuleId(saved.id)
+        message.success('规则已保存')
+        setSaveModalOpen(false)
+        fetch('/api/rules').then((r) => r.json()).then(setRules).catch(() => {})
+      } else {
+        message.error('保存失败')
+      }
+    } catch (e) {
+      message.error('保存失败: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }, [ruleName, qlExpression, customFields, currentRuleId, setCurrentRuleId, setRules])
 
   const handleSearchSelect = useCallback((value) => {
     if (!graphRef.current) return
@@ -613,17 +704,52 @@ function Canvas() {
             options={searchOptions}
             onSearch={handleSearchChange}
             onSelect={handleSearchSelect}
-            style={{ width: 200 }}
+            style={{ width: 160 }}
             placeholder="搜索条件分流节点..."
             allowClear
           >
             <Input size="small" prefix={<SearchOutlined />} />
           </AutoComplete>
+          <Button size="small" type="primary" icon={<UploadOutlined />} onClick={handleSaveClick}>提交</Button>
         </div>
       </div>
       <div className="canvas-container" ref={containerRef}>
         <div className="canvas-drop-indicator" />
       </div>
+      <Modal
+        title="提交规则"
+        open={saveModalOpen}
+        onOk={handleSubmit}
+        onCancel={() => setSaveModalOpen(false)}
+        confirmLoading={saving}
+        okText="提交"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>规则名称</div>
+            <Input
+              placeholder="请输入规则名称"
+              value={ruleName}
+              onChange={(e) => setRuleName(e.target.value)}
+              onPressEnter={handleSubmit}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>创建人</div>
+            <Input
+              placeholder="请输入创建人"
+              value={creator}
+              onChange={(e) => setCreator(e.target.value)}
+            />
+          </div>
+          {currentRuleId && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>规则 ID</div>
+              <Input value={String(currentRuleId)} disabled />
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

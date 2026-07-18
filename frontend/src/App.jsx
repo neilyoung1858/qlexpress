@@ -1,92 +1,40 @@
-import { useEffect, useCallback } from 'react'
-import { ConfigProvider, Button, Tooltip, message } from 'antd'
-import { UndoOutlined, RedoOutlined, NodeIndexOutlined, SaveOutlined, SettingOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { getProvider } from '@antv/x6-react-shape'
-import Sidebar from './components/Sidebar'
-import Canvas from './components/Canvas'
-import RightPanel from './components/RightPanel'
-import FieldModal from './components/FieldModal'
-import SimulatePanel from './components/SimulatePanel'
+import { useState } from 'react'
+import { ConfigProvider } from 'antd'
+import { UnorderedListOutlined, PlusCircleOutlined, ExperimentOutlined } from '@ant-design/icons'
+import RuleList from './components/RuleList'
+import RuleCreate from './components/RuleCreate'
+import RuleTest from './components/RuleTest'
 import useStore from './store/useStore'
 import './App.css'
 
-const PortalProvider = getProvider()
-
 function App() {
-  const graph = useStore((s) => s.graph)
-  const setFieldModalVisible = useStore((s) => s.setFieldModalVisible)
-  const setSimulateVisible = useStore((s) => s.setSimulateVisible)
-  const simulateVisible = useStore((s) => s.simulateVisible)
-  const pushHistory = useStore((s) => s.pushHistory)
-  const undo = useStore((s) => s.undo)
-  const redo = useStore((s) => s.redo)
-  const historyIndex = useStore((s) => s.historyIndex)
-  const history = useStore((s) => s.history)
+  const [activeTab, setActiveTab] = useState('create')
+  const [editRule, setEditRule] = useState(null)
+  const setCanvasData = useStore((s) => s.setCanvasData)
 
-  const handleAutoLayout = useCallback(() => {
-    if (!graph) return
-    const nodes = graph.getNodes()
-    if (nodes.length === 0) return
-    const edges = graph.getEdges()
-    const nodeMap = {}
-    nodes.forEach((n) => { nodeMap[n.id] = n })
-    const inDeg = {}
-    nodes.forEach((n) => { inDeg[n.id] = 0 })
-    edges.forEach((e) => {
-      const target = e.getTargetCellId()
-      if (inDeg[target] !== undefined) inDeg[target]++
-    })
-    const startNode = nodes.find((n) => inDeg[n.id] === 0 && n.shape === 'start')
-    const startId = startNode ? startNode.id : nodes[0].id
-    const levels = {}
-    const queue = [{ id: startId, level: 0 }]
-    const visited = new Set()
-    while (queue.length > 0) {
-      const { id, level } = queue.shift()
-      if (visited.has(id)) continue
-      visited.add(id)
-      if (!levels[level]) levels[level] = []
-      levels[level].push(id)
-      const outEdges = edges.filter((e) => e.getSourceCellId() === id)
-      outEdges.forEach((e) => {
-        const tid = e.getTargetCellId()
-        if (!visited.has(tid)) queue.push({ id: tid, level: level + 1 })
-      })
+  const handleEditRule = (rule) => {
+    setEditRule(rule)
+    setActiveTab('create')
+    if (rule.canvasJson) {
+      try {
+        const data = typeof rule.canvasJson === 'string' ? JSON.parse(rule.canvasJson) : rule.canvasJson
+        setCanvasData(data)
+      } catch (e) {
+        console.warn('Failed to parse canvasJson', e)
+      }
     }
-    const gap = 160
-    const vGap = 100
-    Object.keys(levels).forEach((level) => {
-      const ids = levels[level]
-      const totalW = ids.length * gap
-      ids.forEach((id, i) => {
-        const n = nodeMap[id]
-        if (n) {
-          n.position(80 + i * gap - totalW / 2 + gap / 2, 40 + parseInt(level) * (60 + vGap))
-        }
-      })
-    })
-    pushHistory(graph.toJSON())
-    message.success('自动排版完成')
-  }, [graph, pushHistory])
+  }
 
-  const handleSave = useCallback(() => {
-    if (!graph) return
-    const data = graph.toJSON()
-    localStorage.setItem('ruleCanvasData', JSON.stringify(data, null, 2))
-    message.success('规则已保存到本地')
-  }, [graph])
+  const handleSaved = () => {
+    setEditRule(null)
+    setActiveTab('list')
+  }
 
-  const handleUndo = useCallback(() => {
-    if (!graph || historyIndex <= 0) return
-    const data = undo()
-    if (data) { graph.fromJSON(data); message.info('已撤销') }
-  }, [graph, historyIndex, undo])
-
-  const handleRedo = useCallback(() => {
-    if (!graph || historyIndex >= history.length - 1) return
-    const data = redo()
-    if (data) { graph.fromJSON(data); message.info('已重做') }
-  }, [graph, historyIndex, history, redo])
+  const tabs = [
+    { key: 'list', icon: <UnorderedListOutlined />, label: '规则列表' },
+    { key: 'create', icon: <PlusCircleOutlined />, label: editRule ? '编辑规则' : '创建规则' },
+    { key: 'test', icon: <ExperimentOutlined />, label: '规则测试' },
+  ]
 
   return (
     <ConfigProvider
@@ -98,45 +46,24 @@ function App() {
         },
       }}
     >
-      <div className="app-header">
-        <div className="app-header-left">
-          <div className="brand">
-            <h1>积分规则引擎</h1>
-            <span className="subtitle">QLExpress 可视化配置平台</span>
-          </div>
+      <div className="app-container">
+        <div className="app-tabs">
+          {tabs.map((t) => (
+            <div
+              key={t.key}
+              className={`app-tab ${activeTab === t.key ? 'active' : ''}`}
+              onClick={() => { setEditRule(null); setActiveTab(t.key) }}
+            >
+              {t.icon} {t.label}
+            </div>
+          ))}
         </div>
-        <div className="app-header-center">
-          <Tooltip title="撤销 Ctrl+Z">
-            <Button size="small" icon={<UndoOutlined />} disabled={historyIndex <= 0} onClick={handleUndo} />
-          </Tooltip>
-          <Tooltip title="重做 Ctrl+Shift+Z">
-            <Button size="small" icon={<RedoOutlined />} disabled={historyIndex >= history.length - 1} onClick={handleRedo} />
-          </Tooltip>
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
-          <Tooltip title="一键自动排版">
-            <Button size="small" icon={<NodeIndexOutlined />} onClick={handleAutoLayout}>自动排版</Button>
-          </Tooltip>
-        </div>
-        <div className="app-header-right">
-          <Tooltip title="管理自定义字段">
-            <Button size="small" icon={<SettingOutlined />} onClick={() => setFieldModalVisible(true)}>管理字段</Button>
-          </Tooltip>
-          <Tooltip title="模拟试算交易">
-            <Button size="small" icon={<ThunderboltOutlined />} onClick={() => setSimulateVisible(!simulateVisible)}>模拟试算</Button>
-          </Tooltip>
-          <Tooltip title="保存规则到本地">
-            <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave}>保存</Button>
-          </Tooltip>
+        <div className="app-tab-content">
+          {activeTab === 'list' && <RuleList onEdit={handleEditRule} />}
+          {activeTab === 'create' && <RuleCreate key={editRule?.id || 'new'} editRule={editRule} onSaved={handleSaved} />}
+          {activeTab === 'test' && <RuleTest />}
         </div>
       </div>
-      <div className="app-body">
-        <Sidebar />
-        <Canvas />
-        <RightPanel />
-      </div>
-      <FieldModal />
-      {simulateVisible && <SimulatePanel />}
-      <PortalProvider />
     </ConfigProvider>
   )
 }

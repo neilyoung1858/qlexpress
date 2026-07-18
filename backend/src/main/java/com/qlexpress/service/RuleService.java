@@ -1,54 +1,59 @@
 package com.qlexpress.service;
 
-import com.qlexpress.model.CustomField;
 import com.qlexpress.model.Rule;
+import com.qlexpress.repository.RuleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 public class RuleService {
-    private final Map<String, Rule> rules = new ConcurrentHashMap<>();
+
+    @Autowired
+    private RuleRepository ruleRepository;
 
     public Rule save(Rule rule) {
-        if (rule.getId() == null || rule.getId().isEmpty()) {
-            rule.setId(UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        if (rule.getVersion() == null) {
+            rule.setVersion(1);
         }
-        rule.setCreatedAt(LocalDateTime.now());
-        rule.setUpdatedAt(LocalDateTime.now());
-        rules.put(rule.getId(), rule);
-        return rule;
+        if (rule.getCreator() == null) {
+            rule.setCreator("admin");
+        }
+        if (rule.getStatus() == null) {
+            rule.setStatus(1);
+        }
+        return ruleRepository.save(rule);
     }
 
-    public Rule update(String id, Rule rule) {
-        Rule existing = rules.get(id);
-        if (existing != null) {
-            rule.setId(id);
-            rule.setCreatedAt(existing.getCreatedAt());
-            rule.setUpdatedAt(LocalDateTime.now());
-            rules.put(id, rule);
-            return rule;
+    public Rule update(Long id, Rule rule) {
+        Optional<Rule> existing = ruleRepository.findById(id);
+        if (existing.isEmpty()) {
+            return null;
         }
-        return null;
+        Rule old = existing.get();
+        rule.setId(id);
+        rule.setCreatedAt(old.getCreatedAt());
+        rule.setVersion(old.getVersion() + 1);
+        if (rule.getCreator() == null) {
+            rule.setCreator(old.getCreator());
+        }
+        if (rule.getStatus() == null) {
+            rule.setStatus(old.getStatus());
+        }
+        return ruleRepository.save(rule);
     }
 
-    public Rule findById(String id) {
-        return rules.get(id);
+    public Optional<Rule> findById(Long id) {
+        return ruleRepository.findById(id);
     }
 
     public List<Rule> findAll() {
-        return new ArrayList<>(rules.values()).stream()
-                .sorted((a, b) -> b.getUpdatedAt().compareTo(a.getUpdatedAt()))
-                .collect(Collectors.toList());
+        return ruleRepository.findAllByStatusOrderByUpdatedAtDesc(1);
     }
 
-    public void delete(String id) {
-        rules.remove(id);
+    public void delete(Long id) {
+        ruleRepository.deleteById(id);
     }
 }

@@ -132,16 +132,13 @@ export function generateQLFromCanvas(graphData, customFields) {
 
   const nodes = graphData.nodes
   const edges = graphData.edges || []
-  const comments = []
 
   let expression = ''
 
   const startNode = nodes.find((n) => n.shape === 'start')
   if (!startNode) return ''
 
-  const endNodes = nodes.filter((n) => n.shape === 'end')
-
-  function buildBranch(nodeId, visited = new Set()) {
+  function buildBranch(nodeId, indent = 0, visited = new Set()) {
     if (visited.has(nodeId)) return ''
     visited.add(nodeId)
 
@@ -150,28 +147,26 @@ export function generateQLFromCanvas(graphData, customFields) {
 
     const outEdges = edges.filter((e) => (e.source?.cell || e.source) === nodeId)
     const nodeType = node.shape
-
     const targetId = (edge) => edge.target?.cell || edge.target
+    const ind = (d) => '  '.repeat(d)
 
-    let branchExpr = ''
+    let result = ''
 
     if (nodeType === 'start') {
-      comments.push('// === 开始：交易积分核算 ===')
+      result += `${ind(indent)}// === 开始：交易积分核算 ===\n`
       if (outEdges.length > 0) {
-        branchExpr = buildBranch(targetId(outEdges[0]), new Set(visited))
+        result += buildBranch(targetId(outEdges[0]), indent, new Set(visited))
       }
     } else if (nodeType === 'condition') {
       let groups = node.data?.conditionGroups || []
       const logicOp = node.data?.logicOp || '&&'
 
-      // Backward compat: flat conditions → single group
       if (groups.length === 0 && node.data?.conditions?.length > 0) {
         groups = [{ logicOp: '&&', conditions: node.data.conditions }]
       }
 
-      comments.push(`// ◆ 条件分流：${node.data?.label || '交易条件'}`)
+      result += `${ind(indent)}// ◆ 条件分流：${node.data?.label || '交易条件'}\n`
 
-      // Build combined condition expression from groups
       let allCondExpr = 'true'
       if (groups.length > 0) {
         const groupExprs = groups.map((g) => {
@@ -189,59 +184,54 @@ export function generateQLFromCanvas(graphData, customFields) {
       const subBranches = outEdges.map((edge, idx) => {
         const branchLabel = edge.data?.label || `分支${idx + 1}`
         const condPart = idx === 0 ? allCondExpr : 'true'
-        const subExpr = buildBranch(targetId(edge), new Set(visited))
+        const subExpr = buildBranch(targetId(edge), indent + 1, new Set(visited))
         return { label: branchLabel, cond: condPart, expr: subExpr }
       })
 
       if (subBranches.length === 1) {
-        branchExpr = `if(${subBranches[0].cond}){ ${subBranches[0].expr} }`
+        result += `${ind(indent)}if (${subBranches[0].cond}) {\n${subBranches[0].expr}${ind(indent)}}`
       } else {
-        const parts = subBranches.map((b, i) => {
+        subBranches.forEach((b, i) => {
           const keyword = i === 0 ? 'if' : 'else if'
-          return `${keyword}(${b.cond}){ ${b.expr} /* ${b.label} */ }`
+          result += `${ind(indent)}${keyword} (${b.cond}) {\n${b.expr}${ind(indent)}}`
+          if (i < subBranches.length - 1) result += ' else '
         })
-        branchExpr = parts.join(' ')
       }
     } else if (nodeType === 'calculate') {
       const calc = generateCalculateQL(node, customFields)
-      comments.push(`// ★ 积分计算：${node.data?.label || '多倍积分'}`)
-      branchExpr = `point = ${calc};`
+      result += `${ind(indent)}// ★ 积分计算：${node.data?.label || '多倍积分'}\n`
+      result += `${ind(indent)}point = ${calc};\n`
 
       if (outEdges.length > 0) {
-        branchExpr += buildBranch(targetId(outEdges[0]), new Set(visited))
+        result += buildBranch(targetId(outEdges[0]), indent, new Set(visited))
       }
     } else if (nodeType === 'no_points') {
-      comments.push(`// ⊘ 无积分拦截：${node.data?.label || '不计积分'}`)
+      result += `${ind(indent)}// ⊘ 无积分拦截：${node.data?.label || '不计积分'}\n`
       const cond = generateNoPointsQL(node)
       if (cond) {
-        // Edge 0 = Y (condition NOT met → continue), Edge 1 = N (condition met → intercept)
-        const yBranch = outEdges[0] ? buildBranch(targetId(outEdges[0]), new Set(visited)) : ''
-        const nBranch = outEdges[1] ? buildBranch(targetId(outEdges[1]), new Set(visited)) : ''
-        branchExpr = `if(${cond}){ point = 0; ${nBranch}} else { ${yBranch} }`
+        const yBranch = outEdges[0] ? buildBranch(targetId(outEdges[0]), indent + 1, new Set(visited)) : ''
+        const nBranch = outEdges[1] ? buildBranch(targetId(outEdges[1]), indent + 1, new Set(visited)) : ''
+        result += `${ind(indent)}if (${cond}) {\n${nBranch}${ind(indent)}  point = 0;\n${ind(indent)}} else {\n${yBranch}${ind(indent)}}`
       } else {
-        branchExpr = 'point = 0;'
+        result += `${ind(indent)}point = 0;\n`
         if (outEdges.length > 0) {
-          branchExpr += buildBranch(targetId(outEdges[0]), new Set(visited))
+          result += buildBranch(targetId(outEdges[0]), indent, new Set(visited))
         }
       }
     } else if (nodeType === 'return') {
       const rv = node.data?.returnValue
-      comments.push(`// ↵ 失败响应：${rv || '未设置'}`)
-      branchExpr = rv ? `${rv};` : 'null;'
+      result += `${ind(indent)}// ↵ 失败响应：${rv || '未设置'}\n`
+      result += `${ind(indent)}${rv ? (isNaN(rv) ? `"${rv}"` : rv) : 'null'};\n`
     } else if (nodeType === 'end') {
-      comments.push('// ● 输出最终积分')
-      branchExpr = 'point;'
+      result += `${ind(indent)}// ● 输出最终积分\n`
+      result += `${ind(indent)}point;\n`
     }
 
-    return branchExpr
+    return result
   }
 
   expression = buildBranch(startNode.id)
-
-  const header = comments.join('\n')
-  const fullExpr = header ? `${header}\n${expression}` : expression
-
-  return fullExpr.trim()
+  return expression.trim()
 }
 
 export function generateQLShort(graphData, customFields) {
