@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Graph, Shape } from '@antv/x6'
 import { register } from '@antv/x6-react-shape'
 import { Button, Tooltip, message, AutoComplete, Input, Modal } from 'antd'
-import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, NodeIndexOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, NodeIndexOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { CirclePlay, Diamond, Calculator, Ban, CircleCheckBig, CornerDownLeft } from 'lucide-react'
 import useStore from '../store/useStore'
 import { NODE_DEFINITIONS } from '../config/nodes'
@@ -594,6 +594,7 @@ function Canvas() {
     message.success('自动排版完成')
   }, [pushHistory])
 
+  const fileInputRef = useRef(null)
   const [searchText, setSearchText] = useState('')
   const [searchOptions, setSearchOptions] = useState([])
   const [saveModalOpen, setSaveModalOpen] = useState(false)
@@ -710,6 +711,42 @@ function Canvas() {
           >
             <Input size="small" prefix={<SearchOutlined />} />
           </AutoComplete>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                try {
+                  const data = JSON.parse(ev.target.result)
+                  graphRef.current?.fromJSON(data)
+                  pushHistory(data)
+                  setTimeout(() => { resizeGraph(); generateQL() }, 100)
+                  message.success('规则导入成功')
+                } catch (err) {
+                  message.error('导入失败：JSON格式错误')
+                }
+              }
+              reader.readAsText(file)
+              e.target.value = ''
+            }}
+          />
+          <Button size="small" icon={<DownloadOutlined />} onClick={() => {
+            if (!graphRef.current) return
+            const json = JSON.stringify(graphRef.current.toJSON(), null, 2)
+            const blob = new Blob([json], { type: 'application/json' })
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = `rule_${Date.now()}.json`
+            a.click()
+            URL.revokeObjectURL(a.href)
+            message.success('规则JSON已导出')
+          }}>导出</Button>
+          <Button size="small" icon={<FolderOpenOutlined />} onClick={() => fileInputRef.current?.click()}>导入</Button>
           <Button size="small" type="primary" icon={<UploadOutlined />} onClick={handleSaveClick}>提交</Button>
         </div>
       </div>
