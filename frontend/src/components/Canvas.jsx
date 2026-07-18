@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Graph, Shape } from '@antv/x6'
 import { register } from '@antv/x6-react-shape'
-import { Button, Tooltip, message } from 'antd'
-import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, CommentOutlined, NodeIndexOutlined } from '@ant-design/icons'
+import { Button, Tooltip, message, AutoComplete, Input } from 'antd'
+import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, NodeIndexOutlined, SearchOutlined } from '@ant-design/icons'
 import { CirclePlay, Diamond, Calculator, Ban, CircleCheckBig, CornerDownLeft } from 'lucide-react'
 import useStore from '../store/useStore'
 import { NODE_DEFINITIONS } from '../config/nodes'
@@ -562,19 +562,40 @@ function Canvas() {
     message.success('自动排版完成')
   }, [pushHistory])
 
-  const handleAddAnnotation = () => {
-    if (!graphRef.current) return
-    graphRef.current.addNode({
-      shape: 'rect', id: `annotation_${Date.now()}`,
-      x: 100, y: 100, width: 180, height: 50,
-      data: { annotation: true, text: '在此输入备注...' },
-      attrs: {
-        body: { fill: '#fffbe6', stroke: '#fadb14', strokeWidth: 1, strokeDasharray: '4 2', rx: 6 },
-        text: { text: '在此输入备注...', fontSize: 12, fill: '#8c6e00', textAnchor: 'middle', refY: 0.5 },
-      },
+  const [searchText, setSearchText] = useState('')
+  const [searchOptions, setSearchOptions] = useState([])
+
+  const handleSearchChange = useCallback((value) => {
+    setSearchText(value)
+    if (!value.trim() || !graphRef.current) {
+      setSearchOptions([])
+      return
+    }
+    const q = value.trim().toLowerCase()
+    const cells = graphRef.current.getCells()
+    const results = []
+    cells.forEach((cell) => {
+      if (cell.shape !== 'condition') return
+      const data = cell.getData() || {}
+      const label = (data.label || '').toLowerCase()
+      if (label.includes(q)) {
+        results.push({ value: cell.id, label: data.label || '交易条件分流' })
+      }
     })
-    pushHistory(graphRef.current.toJSON())
-  }
+    setSearchOptions(results)
+  }, [])
+
+  const handleSearchSelect = useCallback((value) => {
+    if (!graphRef.current) return
+    const cell = graphRef.current.getCellById(value)
+    if (cell) {
+      graphRef.current.centerCell(cell)
+      graphRef.current.cleanSelection()
+      graphRef.current.select(cell)
+    }
+    setSearchText('')
+    setSearchOptions([])
+  }, [])
 
   return (
     <div className="canvas-wrapper">
@@ -587,7 +608,17 @@ function Canvas() {
           <span className="info-text">← 拖组件 · 节点圆圈拖出连线 · 拖拽空白平移 · 滚轮缩放 · 选中后Delete删除</span>
         </div>
         <div className="canvas-toolbar-right">
-          <Tooltip title="添加备注框"><Button size="small" icon={<CommentOutlined />} onClick={handleAddAnnotation}>备注</Button></Tooltip>
+          <AutoComplete
+            value={searchText}
+            options={searchOptions}
+            onSearch={handleSearchChange}
+            onSelect={handleSearchSelect}
+            style={{ width: 200 }}
+            placeholder="搜索条件分流节点..."
+            allowClear
+          >
+            <Input size="small" prefix={<SearchOutlined />} />
+          </AutoComplete>
         </div>
       </div>
       <div className="canvas-container" ref={containerRef}>

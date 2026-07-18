@@ -233,11 +233,6 @@ export function generateQLFromCanvas(graphData, customFields) {
       branchExpr = 'point;'
     }
 
-    // Add annotations as comments
-    if (node.data?.annotation) {
-      comments.push(`// 📝 ${node.data.annotation}`)
-    }
-
     return branchExpr
   }
 

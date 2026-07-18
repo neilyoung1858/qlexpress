@@ -100,7 +100,6 @@ function App() {
     >
       <div className="app-header">
         <div className="app-header-left">
-          <div className="logo">R</div>
           <div className="brand">
             <h1>积分规则引擎</h1>
             <span className="subtitle">QLExpress 可视化配置平台</span>

@@ -449,31 +449,6 @@ function DeductionConfig({ node }) {
   )
 }
 
-function AnnotationConfig({ node }) {
-  const [text, setText] = useState(node.data?.annotation || '')
-
-  useEffect(() => {
-    setText(node.data?.annotation || '')
-  }, [node.id])
-
-  const update = (val) => {
-    setText(val)
-    node.setData({ ...node.data, annotation: val })
-  }
-
-  return (
-    <div className="config-section">
-      <div className="config-section-title">业务备注</div>
-      <Input.TextArea
-        value={text}
-        onChange={(e) => update(e.target.value)}
-        placeholder="输入业务备注说明（例如：2026暑期餐饮5倍活动）"
-        rows={3}
-      />
-    </div>
-  )
-}
-
 function ConfigPanel() {
   const { selectedNode, setSelectedNode } = useStore()
   const fields = useStore.getState().getAllFields()
@@ -514,9 +489,7 @@ function ConfigPanel() {
         {shape === 'deduction' && (
           <DeductionConfig node={selectedNode} />
         )}
-        {['condition', 'calculate', 'no_points', 'deduction'].includes(shape) && (
-          <AnnotationConfig node={selectedNode} />
-        )}
+
       </div>
     </div>
   )
